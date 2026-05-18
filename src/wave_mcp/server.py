@@ -34,7 +34,7 @@ API_URL = os.environ.get(
     "https://worldbank.overtone.ai",
 )
 # Fallback if the custom domain isn't routing yet
-API_URL_FALLBACK = "https://wave-dot-overtone-dev.uc.r.appspot.com"
+API_URL_FALLBACK = "https://worldbank-dot-overtone-python.uc.r.appspot.com"
 
 CREDS_FILE = Path.home() / ".wave" / "credentials"
 HTTP_TIMEOUT = 30.0
