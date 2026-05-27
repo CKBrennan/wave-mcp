@@ -7,11 +7,18 @@ Claude skill share credentials.
 
 Tools:
   wb_search_indicators  — find World Bank indicators by natural-language topic
+  wb_get_filters        — available countries + year bounds for an indicator
   wb_get_data           — fetch observations for a specific indicator
   media_signals         — aggregated tone + article volume for a topic
+  media_search_articles — most relevant recent articles for a topic
   media_articles        — flagged articles by signal type (conspiracy/clickbait/brandsafety)
   media_quality         — combined source profiles + concept-gap analysis
+  media_hopeful         — high-depth hopeful/happy articles for a topic
+  media_article_forensics — full article with paragraph-level labels + flags
+  media_narrative_brief — synthesized narrative summary across top articles
+  media_article_summary — summary of one article through the active research lens
   build_chart_spec      — natural-language → Chart.js spec JSON
+  explain_visualization — explain current chart relationship/spikes in plain English
 """
 
 from __future__ import annotations
@@ -204,6 +211,21 @@ def wb_get_data(
 
 
 @mcp.tool()
+def wb_get_filters(
+    indicator_id: Annotated[
+        str,
+        Field(description="The indicator ID returned by wb_search_indicators."),
+    ],
+) -> dict[str, Any]:
+    """Fetch valid countries and year bounds for one indicator.
+
+    Returns the supported ref_area country list plus minYear/maxYear so agents
+    can constrain comparisons to real data coverage before calling wb_get_data.
+    """
+    return _request("GET", "/api/wb/filters", params={"indicatorId": indicator_id})
+
+
+@mcp.tool()
 def media_signals(
     overtone_category: Annotated[
         str,
@@ -221,6 +243,10 @@ def media_signals(
         list[str] | None,
         Field(description="Optional keyword filters that must appear in article headline or concept tags.", default=None),
     ] = None,
+    country_keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional country-name filters such as ['Bangladesh'] applied alongside topic keywords.", default=None),
+    ] = None,
 ) -> list[dict[str, Any]]:
     """Aggregate daily tone + article counts for a topic.
 
@@ -236,7 +262,62 @@ def media_signals(
         params["toMonth"] = to_month
     if keywords:
         params["keywords"] = keywords
+    if country_keywords:
+        params["countryKeywords"] = country_keywords
     return _request("GET", "/api/media/signals", params=params)
+
+
+@mcp.tool()
+def media_search_articles(
+    overtone_category: Annotated[
+        str,
+        Field(description="Overtone news category to search within."),
+    ],
+    query_text: Annotated[
+        str | None,
+        Field(description="Optional natural-language query to improve ranking, e.g. 'labor force participation in Bangladesh'.", default=None),
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(description="Maximum number of articles to return.", default=25, ge=1, le=100),
+    ] = 25,
+    from_month: Annotated[
+        str | None,
+        Field(description="Earliest month (YYYY-MM). Defaults to the recent API window.", default=None),
+    ] = None,
+    to_month: Annotated[
+        str | None,
+        Field(description="Latest month (YYYY-MM).", default=None),
+    ] = None,
+    keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional topic keywords.", default=None),
+    ] = None,
+    country_keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional country-name filters such as ['Kenya', 'South Africa'].", default=None),
+    ] = None,
+) -> list[dict[str, Any]]:
+    """Fetch the most relevant recent articles for a topic.
+
+    Returns ranked articles with headline, source, date, URL, type, concept
+    tags, and match scores. This is the article list used in the Overview tab.
+    """
+    params: dict[str, Any] = {
+        "overtoneCategory": overtone_category,
+        "limit": limit,
+    }
+    if query_text:
+        params["queryText"] = query_text
+    if from_month:
+        params["fromMonth"] = from_month
+    if to_month:
+        params["toMonth"] = to_month
+    if keywords:
+        params["keywords"] = keywords
+    if country_keywords:
+        params["countryKeywords"] = country_keywords
+    return _request("GET", "/api/media/articles", params=params)
 
 
 @mcp.tool()
@@ -265,6 +346,10 @@ def media_articles(
         list[str] | None,
         Field(description="Optional keyword filters.", default=None),
     ] = None,
+    country_keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional country-name filters such as ['Cameroon'].", default=None),
+    ] = None,
 ) -> list[dict[str, Any]]:
     """Fetch articles flagged with a specific misinformation/quality signal.
 
@@ -282,6 +367,8 @@ def media_articles(
         params["toMonth"] = to_month
     if keywords:
         params["keywords"] = keywords
+    if country_keywords:
+        params["countryKeywords"] = country_keywords
     return _request("GET", "/api/media/flagged", params=params)
 
 
@@ -311,6 +398,10 @@ def media_quality(
         list[str] | None,
         Field(description="Optional keyword filters.", default=None),
     ] = None,
+    country_keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional country-name filters such as ['Bangladesh'].", default=None),
+    ] = None,
 ) -> dict[str, Any]:
     """Combined source profiles + concept-gap analysis for a topic.
 
@@ -334,10 +425,205 @@ def media_quality(
         params["toMonth"] = to_month
     if keywords:
         params["keywords"] = keywords
+    if country_keywords:
+        params["countryKeywords"] = country_keywords
 
     sources = _request("GET", "/api/media/sources", params={k: v for k, v in params.items() if k != "topN"})
     concepts = _request("GET", "/api/media/concepts", params={k: v for k, v in params.items() if k != "limit"})
     return {"sources": sources, "concepts": concepts}
+
+
+@mcp.tool()
+def media_hopeful(
+    overtone_category: Annotated[
+        str,
+        Field(description="Overtone news category to analyse."),
+    ],
+    limit: Annotated[
+        int,
+        Field(description="Maximum number of articles to return.", default=12, ge=1, le=50),
+    ] = 12,
+    from_month: Annotated[
+        str | None,
+        Field(description="Earliest month (YYYY-MM).", default=None),
+    ] = None,
+    to_month: Annotated[
+        str | None,
+        Field(description="Latest month (YYYY-MM).", default=None),
+    ] = None,
+    keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional topic keywords.", default=None),
+    ] = None,
+    country_keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional country-name filters.", default=None),
+    ] = None,
+) -> list[dict[str, Any]]:
+    """Fetch the most hopeful/happy high-depth coverage for a topic.
+
+    Returns positivity-ranked articles after topical relevance filtering. This
+    mirrors the hopeful coverage section in Media Deep Dive.
+    """
+    params: dict[str, Any] = {"overtoneCategory": overtone_category, "limit": limit}
+    if from_month:
+        params["fromMonth"] = from_month
+    if to_month:
+        params["toMonth"] = to_month
+    if keywords:
+        params["keywords"] = keywords
+    if country_keywords:
+        params["countryKeywords"] = country_keywords
+    return _request("GET", "/api/media/hopeful", params=params)
+
+
+@mcp.tool()
+def media_article_forensics(
+    url: Annotated[
+        str,
+        Field(description="Article URL returned by media_search_articles or media_articles."),
+    ],
+) -> dict[str, Any]:
+    """Fetch one article with paragraph-level forensics annotations.
+
+    Returns paragraph text, paragraph labels, article type, brand-safety score,
+    and low-quality signals. This mirrors the Article Forensics panel.
+    """
+    return _request("GET", "/api/media/article", params={"url": url})
+
+
+@mcp.tool()
+def media_narrative_brief(
+    overtone_category: Annotated[
+        str,
+        Field(description="Overtone news category to summarize."),
+    ],
+    query_text: Annotated[
+        str | None,
+        Field(description="Optional natural-language framing of the topic to help article retrieval.", default=None),
+    ] = None,
+    keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional topic keywords.", default=None),
+    ] = None,
+    country_keywords: Annotated[
+        list[str] | None,
+        Field(description="Optional country-name filters.", default=None),
+    ] = None,
+    indicator_id: Annotated[
+        str | None,
+        Field(description="Optional World Bank indicator ID to include as context.", default=None),
+    ] = None,
+    indicator_name: Annotated[
+        str | None,
+        Field(description="Optional World Bank indicator name.", default=None),
+    ] = None,
+    ref_areas: Annotated[
+        list[str] | None,
+        Field(description="Optional ISO-3 country codes for World Bank context, e.g. ['BGD', 'IND'].", default=None),
+    ] = None,
+    countries: Annotated[
+        list[str] | None,
+        Field(description="Optional human-readable country names for the summary lens.", default=None),
+    ] = None,
+    from_month: Annotated[
+        str | None,
+        Field(description="Earliest month (YYYY-MM).", default=None),
+    ] = None,
+    to_month: Annotated[
+        str | None,
+        Field(description="Latest month (YYYY-MM).", default=None),
+    ] = None,
+    from_year: Annotated[
+        str | None,
+        Field(description="Optional World Bank start year for narrative context.", default=None),
+    ] = None,
+    to_year: Annotated[
+        str | None,
+        Field(description="Optional World Bank end year for narrative context.", default=None),
+    ] = None,
+) -> dict[str, Any]:
+    """Generate a narrative intelligence brief across the top matched articles.
+
+    Returns a concise synthesized narrative that relates media coverage to the
+    active World Bank indicator context when provided.
+    """
+    return _request(
+        "POST",
+        "/api/media/synthesize",
+        json={
+            "overtoneCategory": overtone_category,
+            "queryText": query_text,
+            "keywords": keywords or [],
+            "countryKeywords": country_keywords or [],
+            "indicatorId": indicator_id,
+            "indicatorName": indicator_name,
+            "refAreas": ref_areas or [],
+            "countries": countries or [],
+            "fromMonth": from_month,
+            "toMonth": to_month,
+            "fromYear": from_year,
+            "toYear": to_year,
+        },
+    )
+
+
+@mcp.tool()
+def media_article_summary(
+    url: Annotated[
+        str,
+        Field(description="Article URL returned by media_search_articles or media_articles."),
+    ],
+    indicator_id: Annotated[
+        str | None,
+        Field(description="Optional World Bank indicator ID to include as context.", default=None),
+    ] = None,
+    indicator_name: Annotated[
+        str | None,
+        Field(description="Optional World Bank indicator name.", default=None),
+    ] = None,
+    overtone_category: Annotated[
+        str | None,
+        Field(description="Optional media topic label.", default=None),
+    ] = None,
+    ref_areas: Annotated[
+        list[str] | None,
+        Field(description="Optional ISO-3 country codes for World Bank context.", default=None),
+    ] = None,
+    countries: Annotated[
+        list[str] | None,
+        Field(description="Optional human-readable country names for the summary lens.", default=None),
+    ] = None,
+    from_year: Annotated[
+        str | None,
+        Field(description="Optional World Bank start year.", default=None),
+    ] = None,
+    to_year: Annotated[
+        str | None,
+        Field(description="Optional World Bank end year.", default=None),
+    ] = None,
+) -> dict[str, Any]:
+    """Summarize one article through the active research lens.
+
+    Returns a short narrative summary that connects the article to the provided
+    topic/indicator context and World Bank trend when available.
+    """
+    return _request(
+        "POST",
+        "/api/media/summarize",
+        json={
+            "url": url,
+            "context": {
+                "indicatorId": indicator_id,
+                "indicatorName": indicator_name,
+                "overtoneCategory": overtone_category,
+                "refAreas": ref_areas or [],
+                "countries": countries or [],
+                "fromYear": from_year,
+                "toYear": to_year,
+            },
+        },
+    )
 
 
 @mcp.tool()
@@ -364,3 +650,22 @@ def build_chart_spec(
         "/api/visualize/build",
         json={"message": request, "context": context or {}, "history": []},
     )
+
+
+@mcp.tool()
+def explain_visualization(
+    question: Annotated[
+        str,
+        Field(description="Question about the current charts, e.g. 'Why is there a spike on 2025-08-06?' or 'How do the top and bottom charts relate?'"),
+    ],
+    context: Annotated[
+        dict[str, Any],
+        Field(description="Current chart context: overtoneCategory, indicatorId/indicatorName, selectedIndicators, countries or analysisCountries, fromDate, toDate, keywords, mediaChartType."),
+    ],
+) -> dict[str, Any]:
+    """Explain the current visualization in plain English.
+
+    Returns an answer plus any detected peak-day metadata/articles. Mirrors the
+    Visualize tab assistant used to explain spikes and chart relationships.
+    """
+    return _request("POST", "/api/visualize/explain", json={"question": question, "context": context})

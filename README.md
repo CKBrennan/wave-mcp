@@ -11,7 +11,7 @@ so that agents can answer questions like *"how does HIV prevalence in Southern A
 ## Install
 
 ```bash
-uvx wave-mcp
+uvx --from git+https://github.com/overtone-ai/frontend_appengine.git@wave-mcp#subdirectory=wave-mcp wave-mcp
 ```
 
 Or in your `claude_desktop_config.json` / Claude Code MCP config:
@@ -21,7 +21,11 @@ Or in your `claude_desktop_config.json` / Claude Code MCP config:
   "mcpServers": {
     "wave": {
       "command": "uvx",
-      "args": ["wave-mcp"]
+      "args": [
+        "--from",
+        "git+https://github.com/overtone-ai/frontend_appengine.git@wave-mcp#subdirectory=wave-mcp",
+        "wave-mcp"
+      ]
     }
   }
 }
@@ -34,11 +38,18 @@ A free-tier API key is provisioned automatically on first use and cached at `~/.
 | Tool | Use case |
 |---|---|
 | `wb_search_indicators` | Find World Bank indicators by natural-language topic |
+| `wb_get_filters` | Get valid countries + year bounds for an indicator |
 | `wb_get_data` | Fetch observations for a specific indicator + countries + year range |
 | `media_signals` | Aggregate tone + article counts for a topic over time |
+| `media_search_articles` | Fetch the most relevant recent articles for a topic |
 | `media_articles` | Flagged articles by signal type (conspiracy/clickbait/brand-safety) |
 | `media_quality` | Source profiles + concept-gap analysis combined |
+| `media_hopeful` | Retrieve the most hopeful/happy high-depth coverage |
+| `media_article_forensics` | Inspect one article with paragraph-level labels + flags |
+| `media_narrative_brief` | Synthesize the dominant narratives across top articles |
+| `media_article_summary` | Summarize one article through the active research lens |
 | `build_chart_spec` | Natural-language → Chart.js spec JSON (let your own renderer draw it) |
+| `explain_visualization` | Explain a chart spike or the relationship between charts |
 
 ## Configuration
 

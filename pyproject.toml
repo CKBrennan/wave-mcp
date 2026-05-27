@@ -1,6 +1,6 @@
 [project]
 name = "wave-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for WAVE — World Bank development data joined with Overtone media-quality signals."
 readme = "README.md"
 requires-python = ">=3.10"
