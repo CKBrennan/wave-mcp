@@ -11,7 +11,7 @@ so that agents can answer questions like *"how does HIV prevalence in Southern A
 ## Install
 
 ```bash
-uvx --from git+https://github.com/overtone-ai/frontend_appengine.git@wave-mcp#subdirectory=wave-mcp wave-mcp
+uvx --from git+https://github.com/CKBrennan/wave-mcp.git wave-mcp
 ```
 
 Or in your `claude_desktop_config.json` / Claude Code MCP config:
@@ -23,7 +23,7 @@ Or in your `claude_desktop_config.json` / Claude Code MCP config:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/overtone-ai/frontend_appengine.git@wave-mcp#subdirectory=wave-mcp",
+        "git+https://github.com/CKBrennan/wave-mcp.git",
         "wave-mcp"
       ]
     }
